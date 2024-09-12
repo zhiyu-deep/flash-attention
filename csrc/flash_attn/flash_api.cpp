@@ -20,14 +20,14 @@
 
 void set_params_fprop(Flash_fwd_params &params,
                       // sizes
-                      const size_t b,
+                      const size_t b,  // batch size.
                       const size_t seqlen_q,
                       const size_t seqlen_k,
                       const size_t seqlen_q_rounded,
                       const size_t seqlen_k_rounded,
                       const size_t h,
                       const size_t h_k,
-                      const size_t d,
+                      const size_t d,  // head size
                       const size_t d_rounded,
                       // device pointers
                       const at::Tensor q,
@@ -89,15 +89,15 @@ void set_params_fprop(Flash_fwd_params &params,
     params.softmax_lse_ptr = softmax_lse_d;
 
     // Set the dimensions.
-    params.b = b;
-    params.h = h;
-    params.h_k = h_k;
-    params.h_h_k_ratio = h / h_k;
-    params.seqlen_q = seqlen_q;
-    params.seqlen_k = seqlen_k;
+    params.b = b;  // q batch size
+    params.h = h;  // q heads.
+    params.h_k = h_k;  // kv heads.
+    params.h_h_k_ratio = h / h_k;  // share heads.
+    params.seqlen_q = seqlen_q;  // max seqlen q.
+    params.seqlen_k = seqlen_k;  // max seqlen k.
     params.seqlen_q_rounded = seqlen_q_rounded;
     params.seqlen_k_rounded = seqlen_k_rounded;
-    params.d = d;
+    params.d = d;  // head size
     params.d_rounded = d_rounded;
 
     // Set the different scale values.
@@ -704,11 +704,11 @@ mha_varlen_fwd(at::Tensor &q,  // total_q x num_heads x head_size, total_q := \s
 
     Flash_fwd_params params;
     set_params_fprop(params,
-                     batch_size,
+                     batch_size,  // b
                      max_seqlen_q, max_seqlen_k,
                      seqlen_q_rounded, seqlen_k_rounded,
                      num_heads, num_heads_k,
-                     head_size, head_size_rounded,
+                     head_size/* head size */, head_size_rounded,
                      q_padded, k_padded, v_padded, out,
                      cu_seqlens_q_d,
                      cu_seqlens_k.data_ptr(),

@@ -596,6 +596,10 @@ def flash_attn_kvpacked_func(
         1 1
     If the row of the mask is all zero, the output will be zero.
 
+    // todo:
+    //  1. causal的定义如上, 仅仅表示右边是上三角, 左边情况不明确, causal = true, 则window_size[1] = 0.
+    //  2. i + seqlen_k - seqlen_q, 刚好定位在对角线处, window_size[0] = -1, 表示
+
     If window_size != (-1, -1), implements sliding window local attention. Query at position i
     will only attend to keys between
     [i + seqlen_k - seqlen_q - window_size[0], i + seqlen_k - seqlen_q + window_size[1]] inclusive.
