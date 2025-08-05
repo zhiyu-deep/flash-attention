@@ -470,9 +470,12 @@ if not SKIP_CUDA_BUILD:
         + (["-DFLASHATTENTION_ENABLE_VCOLMAJOR"] if ENABLE_VCOLMAJOR else [])
     )
 
+    # todo: 控制dtype.
     DTYPE_FWD_SM80 = ["bf16"] + (["fp16"] if not DISABLE_FP16 else [])
     DTYPE_FWD_SM90 = ["bf16"] + (["fp16"] if not DISABLE_FP16 else []) + (["e4m3"] if not DISABLE_FP8 else [])
     DTYPE_BWD = ["bf16"] + (["fp16"] if not DISABLE_FP16 else [])
+
+    # todo: 控制headSize.
     HEAD_DIMENSIONS_BWD = (
         []
         + ([64] if not DISABLE_HDIM64 else [])
@@ -481,13 +484,17 @@ if not SKIP_CUDA_BUILD:
         + ([192] if not DISABLE_HDIM192 else [])
         + ([256] if not DISABLE_HDIM256 else [])
     )
-    HEAD_DIMENSIONS_FWD = ["all", "diff"]
+    HEAD_DIMENSIONS_FWD = ["all", "diff"]  # todo: for SM90, all: 代表q=v的情况(支持若干headSize); diff: 代表q!=v的情况(支持若干headSize)
     HEAD_DIMENSIONS_FWD_SM80 = HEAD_DIMENSIONS_BWD
+
+    # todo: 控制算子行为.
     SPLIT = [""] + (["_split"] if not DISABLE_SPLIT else [])
     PAGEDKV = [""] + (["_paged"] if not DISABLE_PAGEDKV else [])
-    SOFTCAP = [""] + (["_softcap"] if not DISABLE_SOFTCAP else [])
-    SOFTCAP_ALL = [""] if DISABLE_SOFTCAP else ["_softcapall"]
-    PACKGQA = [""] + (["_packgqa"] if not DISABLE_PACKGQA else [])
+    SOFTCAP = [""] + (["_softcap"] if not DISABLE_SOFTCAP else [])  # todo: for SM90.
+    SOFTCAP_ALL = [""] if DISABLE_SOFTCAP else ["_softcapall"]  # todo: for SM80.
+    PACKGQA = [""] + (["_packgqa"] if not DISABLE_PACKGQA else [])  # todo: for SM90, already hard-code PackGQA=true for Sm8x.
+
+    # todo: source.
     # We already always hard-code PackGQA=true for Sm8x
     sources_fwd_sm80 = [f"instantiations/flash_fwd_hdim{hdim}_{dtype}{paged}{split}{softcap}_sm80.cu"
                         for hdim, dtype, split, paged, softcap in itertools.product(HEAD_DIMENSIONS_FWD_SM80, DTYPE_FWD_SM80, SPLIT, PAGEDKV, SOFTCAP_ALL)]
@@ -502,6 +509,7 @@ if not SKIP_CUDA_BUILD:
     if DISABLE_BACKWARD:
         sources_bwd_sm90 = []
         sources_bwd_sm80 = []
+
     sources = (
         ["flash_api.cpp"]
         + (sources_fwd_sm80 if not DISABLE_SM8x else []) + sources_fwd_sm90

@@ -46,8 +46,6 @@ for attn_variant in attn_variants[3:5]:
     # page_size = None
     page_size = 64 if attn_variant in ["mla", "gla"] else 128
 
-    should_run_flashmla = attn_variant == "mla" and page_size == 64 and flash_mla_with_kvcache is not None
-
     torch.manual_seed(0)
 
     batch_size = 128
@@ -78,13 +76,12 @@ for attn_variant in attn_variants[3:5]:
             continue
         qv = torch.randn(batch_size, seqlen_q, nheads_q, headdim_v, dtype=dtype, device=device) if has_qv else None
 
+        # todo: flash attn3 run attention(mla, gla).
         # Precomputing this saves ~2us
         scheduler_metadata = get_scheduler_metadata(
             batch_size, seqlen_q, seqlen, nheads_q, nheads_kv, headdim,
             cache_seqlens, q.dtype, headdim_v=headdim_v, page_size=page_size, causal=True
         )
-        # scheduler_metadata = None
-        # breakpoint()
         fn0 = lambda: flash_attn_with_kvcache(q, k_cache, v_cache, cache_seqlens=cache_seqlens, num_splits=num_splits, qv=qv, page_table=page_table, causal=True, scheduler_metadata=scheduler_metadata)
         time.sleep(1)  # to avoid power throttling
         # Time in ms
@@ -94,7 +91,9 @@ for attn_variant in attn_variants[3:5]:
             torch.cuda.synchronize()  # Gotta wait, otherwise e.g. k_cache might not be ready
             with torch.cuda.stream(torch.cuda.Stream()):
                 t0 = do_bench_cudagraph(fn0, rep=10)
-        # exit(0)
+
+        # todo: flash mla run mla.
+        should_run_flashmla = attn_variant == "mla" and page_size == 64 and flash_mla_with_kvcache is not None
         if should_run_flashmla:
             # Separate out the preprocessing since this can be done once and reused for all layers
             mla_metadata = get_mla_metadata(cache_seqlens, seqlen_q * nheads_q // nheads_kv, nheads_kv)
@@ -109,6 +108,7 @@ for attn_variant in attn_variants[3:5]:
                 with torch.cuda.stream(torch.cuda.Stream()):
                     t1 = do_bench_cudagraph(fn1, rep=10)
 
+        # todo: statistics.
         total_seqlen = seqlen * batch_size if cache_seqlens is None else cache_seqlens.sum().item()
         mem_io = total_seqlen * nheads_kv * (headdim + headdim_v) * 2 + q.numel() * 2 + (qv.numel() * 2 if has_qv else 0) + q.numel() * headdim_v // headdim * 2  # last term is for the output
         flops = seqlen_q * total_seqlen * nheads_q * (headdim + headdim_v * (2 if has_qv else 1)) * 2
@@ -121,9 +121,3 @@ for attn_variant in attn_variants[3:5]:
         print(f"Arithmetic intensity: {flops / mem_io:.1f}")
         print(f"Ideal time: {ideal_h100_time:.0f} us")
 
-        # if pytorch_profiler is not None:
-        #     time.sleep(1)  # to avoid power throttling
-        #     pytorch_profiler(fn0)
-        #     if should_run_flashmla:
-        #         time.sleep(1)  # to avoid power throttling
-        #         pytorch_profiler(fn1)
